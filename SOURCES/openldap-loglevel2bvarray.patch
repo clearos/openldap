@@ -1,0 +1,27 @@
+From 4313b91b0bc2fe6585656cd69a03f9755b5af3c4 Mon Sep 17 00:00:00 2001
+From: Jan Synacek <jsynacek@redhat.com>
+Date: Wed, 29 May 2013 10:21:40 +0200
+Subject: [PATCH] Fix loglevel2bvarray
+
+---
+ servers/slapd/bconfig.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/servers/slapd/bconfig.c b/servers/slapd/bconfig.c
+index 4e1f1b5..def6daf 100644
+--- a/servers/slapd/bconfig.c
++++ b/servers/slapd/bconfig.c
+@@ -3622,6 +3622,10 @@ loglevel2bvarray( int l, BerVarray *bva )
+ 		loglevel_init();
+ 	}
+ 
++	if ( l == 0 ) {
++		return value_add_one( bva, ber_bvstr( "0" ) );
++	}
++
+ 	return mask_to_verbs( loglevel_ops, l, bva );
+ }
+ 
+-- 
+1.8.1.4
+
