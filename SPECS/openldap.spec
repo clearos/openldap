@@ -4,8 +4,8 @@
 %global check_password_version 1.1
 
 Name: openldap
-Version: 2.4.35
-Release: 7%{?dist}
+Version: 2.4.39
+Release: 3%{?dist}
 Summary: LDAP support libraries
 Group: System Environment/Daemons
 License: OpenLDAP
@@ -26,7 +26,6 @@ Source55: libexec-generate-server-cert.sh
 
 # patches for 2.4
 Patch0: openldap-manpages.patch
-Patch1: openldap-security-pie.patch
 Patch2: openldap-sql-linking.patch
 Patch3: openldap-reentrant-gethostby.patch
 Patch4: openldap-smbk5pwd-overlay.patch
@@ -42,9 +41,6 @@ Patch13: openldap-nss-regex-search-hashed-cacert-dir.patch
 Patch14: openldap-nss-ignore-certdb-type-prefix.patch
 Patch15: openldap-nss-certs-from-certdb-fallback-pem.patch
 Patch16: openldap-nss-pk11-freeslot.patch
-# documentation patches, already included upstream
-Patch17: openldap-doc1.patch
-Patch18: openldap-doc2.patch
 # fix back_perl problems with lt_dlopen()
 # might cause crashes because of symbol collisions
 # the proper fix is to link all perl modules against libperl
@@ -52,12 +48,8 @@ Patch18: openldap-doc2.patch
 Patch19: openldap-switch-to-lt_dlopenadvise-to-get-RTLD_GLOBAL-set.patch
 # ldapi sasl fix pending upstream inclusion
 Patch20: openldap-ldapi-sasl.patch
-# already included upstream
-Patch21: openldap-loglevel2bvarray.patch
-# more documentation fixes, upstreamed
-Patch22: openldap-doc3.patch
-# cldap fixes, upstreamed
-Patch23: openldap-cldap.patch
+# rwm reference counting fix, pending upstream inclusion
+Patch21: openldap-rwm-reference-counting.patch
 
 # Fedora specific patches
 Patch100: openldap-autoconf-pkgconfig-nss.patch
@@ -157,7 +149,6 @@ ln -s %{_includedir}/nspr4 include/nspr
 AUTOMAKE=%{_bindir}/true autoreconf -fi
 
 %patch0 -p1
-%patch1 -p1
 %patch2 -p1
 %patch3 -p1
 %patch4 -p1
@@ -173,13 +164,9 @@ AUTOMAKE=%{_bindir}/true autoreconf -fi
 %patch14 -p1
 %patch15 -p1
 %patch16 -p1
-%patch17 -p1
-%patch18 -p1
 %patch19 -p1
 %patch20 -p1
 %patch21 -p1
-%patch22 -p1
-%patch23 -p1
 
 %patch102 -p1
 
@@ -199,9 +186,15 @@ popd
 
 %build
 
+%ifarch s390 s390x
+  export CFLAGS="-fPIE"
+%else
+  export CFLAGS="-fpie"
+%endif
+export LDFLAGS="-pie"
 # avoid stray dependencies (linker flag --as-needed)
 # enable experimental support for LDAP over UDP (LDAP_CONNECTIONLESS)
-export CFLAGS="%{optflags} -Wl,--as-needed -DLDAP_CONNECTIONLESS"
+export CFLAGS="${CFLAGS} %{optflags} -Wl,--as-needed -DLDAP_CONNECTIONLESS"
 
 pushd openldap-%{version}
 %configure \
@@ -229,6 +222,7 @@ pushd openldap-%{version}
 	--enable-backends=mod \
 	--enable-bdb=yes \
 	--enable-hdb=yes \
+	--enable-mdb=yes \
 	--enable-monitor=yes \
 	--disable-ndb \
 	\
@@ -294,8 +288,8 @@ install -m 0700 -d %{buildroot}%{_sharedstatedir}/ldap
 install -m 0755 -d %{buildroot}%{_localstatedir}/run/openldap
 
 # setup autocreation of runtime directories on tmpfs
-mkdir -p %{buildroot}%{_sysconfdir}/tmpfiles.d
-install -m 0644 %SOURCE3 %{buildroot}%{_sysconfdir}/tmpfiles.d/slapd.conf
+mkdir -p %{buildroot}%{_tmpfilesdir}/
+install -m 0644 %SOURCE3 %{buildroot}%{_tmpfilesdir}/slapd.conf
 
 # install default ldap.conf (customized)
 rm -f %{buildroot}%{_sysconfdir}/openldap/ldap.conf
@@ -542,7 +536,7 @@ exit 0
 %config(noreplace) %dir %attr(0750,ldap,ldap) %{_sysconfdir}/openldap/slapd.d
 %config(noreplace) %{_sysconfdir}/openldap/schema
 %config(noreplace) %{_sysconfdir}/sysconfig/slapd
-%config(noreplace) %{_sysconfdir}/tmpfiles.d/slapd.conf
+%config(noreplace) %{_tmpfilesdir}/slapd.conf
 %config(noreplace) %{_sysconfdir}/openldap/check_password.conf
 %dir %attr(0700,ldap,ldap) %{_sharedstatedir}/ldap
 %dir %attr(-,ldap,ldap) %{_localstatedir}/run/openldap
@@ -552,7 +546,6 @@ exit 0
 %{_libdir}/openldap/auditlog*
 %{_libdir}/openldap/back_dnssrv*
 %{_libdir}/openldap/back_ldap*
-%{_libdir}/openldap/back_mdb*
 %{_libdir}/openldap/back_meta*
 %{_libdir}/openldap/back_null*
 %{_libdir}/openldap/back_passwd*
@@ -609,6 +602,30 @@ exit 0
 %{_mandir}/man3/*
 
 %changelog
+* Wed Feb 26 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-3
+- move tmpfiles config to correct location (#1069513)
+
+* Wed Feb  5 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-2
+- CVE-2013-4449: segfault on certain queries with rwm overlay (#1061405)
+
+* Thu Jan 30 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-1
+- new upstream release (#1040324)
+
+* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 2.4.35-12
+- Mass rebuild 2014-01-24
+
+* Thu Jan 16 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.35-11
+- fix: missing EOL at the end of default /etc/openldap/ldap.conf (#1053005)
+
+* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 2.4.35-10
+- Mass rebuild 2013-12-27
+
+* Tue Dec 17 2013 Jan Synáček <jsynacek@redhat.com> - 2.4.35-9
+- fix: more typos in manpages (#948562)
+
+* Wed Nov 13 2013 Jan Synáček <jsynacek@redhat.com> - 2.4.35-8
+- fix: slaptest incorrectly handles 'include' directives containing a custom file (#1023415)
+
 * Mon Oct 14 2013 Jan Synáček <jsynacek@redhat.com> - 2.4.35-7
 - fix: CLDAP is broken for IPv6 (#1007421)
 
