@@ -5,7 +5,7 @@
 
 Name: openldap
 Version: 2.4.39
-Release: 3%{?dist}
+Release: 6%{?dist}
 Summary: LDAP support libraries
 Group: System Environment/Daemons
 License: OpenLDAP
@@ -50,6 +50,12 @@ Patch19: openldap-switch-to-lt_dlopenadvise-to-get-RTLD_GLOBAL-set.patch
 Patch20: openldap-ldapi-sasl.patch
 # rwm reference counting fix, pending upstream inclusion
 Patch21: openldap-rwm-reference-counting.patch
+# upstreamed, ITS #7979
+Patch22: openldap-support-tlsv1-and-later.patch
+# upstreamed, ITS #7933
+Patch23: openldap-olcfrontend-config.patch
+# pending upstream inclusion, ITS #7744
+Patch24: openldap-man-tls-reqcert.patch
 
 # Fedora specific patches
 Patch100: openldap-autoconf-pkgconfig-nss.patch
@@ -60,6 +66,7 @@ BuildRequires: glibc-devel, libtool, libtool-ltdl-devel, groff, perl, perl-devel
 # smbk5pwd overlay:
 BuildRequires: openssl-devel
 Requires: nss-tools
+Requires(post): rpm, coreutils
 
 %description
 OpenLDAP is an open source suite of LDAP (Lightweight Directory Access
@@ -167,6 +174,9 @@ AUTOMAKE=%{_bindir}/true autoreconf -fi
 %patch19 -p1
 %patch20 -p1
 %patch21 -p1
+%patch22 -p1
+%patch23 -p1
+%patch24 -p1
 
 %patch102 -p1
 
@@ -602,6 +612,20 @@ exit 0
 %{_mandir}/man3/*
 
 %changelog
+* Thu Dec  4 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-6
+- refix: slapd.ldif olcFrontend missing important/required objectclass (#1132094)
+
+* Fri Nov 28 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-5
+- add documentation reference to service file (#1087288)
+- fix: tls_reqcert try has bad behavior (#1027613)
+
+* Tue Nov 25 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-4
+- support TLS 1.1 and later (#1160468)
+- fix: /etc/openldap/certs directory is empty after installation (#1064251)
+- fix: Typo in script to generate /usr/libexec/openldap/generate-server-cert.sh (#1087490)
+- fix: remove correct tmp file when generating server cert (#1103101)
+- fix: slapd.ldif olcFrontend missing important/required objectclass (#1132094)
+
 * Wed Feb 26 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-3
 - move tmpfiles config to correct location (#1069513)
 
