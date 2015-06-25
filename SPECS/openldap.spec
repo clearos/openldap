@@ -23,6 +23,7 @@ Source52: libexec-check-config.sh
 Source53: libexec-upgrade-db.sh
 Source54: libexec-create-certdb.sh
 Source55: libexec-generate-server-cert.sh
+Source56: libexec-prestart.sh
 
 # patches for 2.4
 Patch0: openldap-manpages.patch
@@ -295,6 +296,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/openldap/certs
 mkdir -p %{buildroot}%{_sharedstatedir}
 mkdir -p %{buildroot}%{_localstatedir}
 install -m 0700 -d %{buildroot}%{_sharedstatedir}/ldap
+install -m 0700 -d %{buildroot}%{_sharedstatedir}/ldap/accesslog
 install -m 0755 -d %{buildroot}%{_localstatedir}/run/openldap
 
 # setup autocreation of runtime directories on tmpfs
@@ -314,6 +316,7 @@ install -m 0755 %SOURCE52 %{buildroot}%{_libexecdir}/openldap/check-config.sh
 install -m 0755 %SOURCE53 %{buildroot}%{_libexecdir}/openldap/upgrade-db.sh
 install -m 0755 %SOURCE54 %{buildroot}%{_libexecdir}/openldap/create-certdb.sh
 install -m 0755 %SOURCE55 %{buildroot}%{_libexecdir}/openldap/generate-server-cert.sh
+install -m 0755 %SOURCE56 %{buildroot}%{_libexecdir}/openldap/prestart.sh
 
 # remove build root from config files and manual pages
 perl -pi -e "s|%{buildroot}||g" %{buildroot}%{_sysconfdir}/openldap/*.conf
@@ -348,8 +351,9 @@ chmod 0644 %{buildroot}%{_libdir}/lib*.*a
 mkdir -p %{buildroot}%{_datadir}
 install -m 0755 -d %{buildroot}%{_datadir}/openldap-servers
 install -m 0644 %SOURCE4 %{buildroot}%{_datadir}/openldap-servers/slapd.ldif
-install -m 0700 -d %{buildroot}%{_sysconfdir}/openldap/slapd.d
-rm -f %{buildroot}%{_sysconfdir}/openldap/slapd.conf
+# ClearFoundation - slapd.d ... nope.
+# install -m 0700 -d %{buildroot}%{_sysconfdir}/openldap/slapd.d
+# rm -f %{buildroot}%{_sysconfdir}/openldap/slapd.conf
 rm -f %{buildroot}%{_sysconfdir}/openldap/slapd.ldif
 
 # move doc files out of _sysconfdir
@@ -404,14 +408,14 @@ exit 0
 %{_libexecdir}/openldap/generate-server-cert.sh -o &>/dev/null || :
 
 # generate/upgrade configuration
-if [ ! -f %{_sysconfdir}/openldap/slapd.d/cn=config.ldif ]; then
-	if [ -f %{_sysconfdir}/openldap/slapd.conf ]; then
-		%{_libexecdir}/openldap/convert-config.sh &>/dev/null
-		mv %{_sysconfdir}/openldap/slapd.conf %{_sysconfdir}/openldap/slapd.conf.bak
-	else
-		%{_libexecdir}/openldap/convert-config.sh -f %{_datadir}/openldap-servers/slapd.ldif &>/dev/null
-	fi
-fi
+#if [ ! -f %{_sysconfdir}/openldap/slapd.d/cn=config.ldif ]; then
+#	if [ -f %{_sysconfdir}/openldap/slapd.conf ]; then
+#		%{_libexecdir}/openldap/convert-config.sh &>/dev/null
+#		mv %{_sysconfdir}/openldap/slapd.conf %{_sysconfdir}/openldap/slapd.conf.bak
+#	else
+#		%{_libexecdir}/openldap/convert-config.sh -f %{_datadir}/openldap-servers/slapd.ldif &>/dev/null
+#	fi
+#fi
 
 start_slapd=0
 
@@ -543,12 +547,13 @@ exit 0
 %doc openldap-%{version}/servers/slapd/back-perl/README.back_perl
 %doc ltb-project-openldap-ppolicy-check-password-%{check_password_version}/README.check_pwd
 %doc README.schema
-%config(noreplace) %dir %attr(0750,ldap,ldap) %{_sysconfdir}/openldap/slapd.d
+#%config(noreplace) %dir %attr(0750,ldap,ldap) %{_sysconfdir}/openldap/slapd.d
 %config(noreplace) %{_sysconfdir}/openldap/schema
 %config(noreplace) %{_sysconfdir}/sysconfig/slapd
 %config(noreplace) %{_tmpfilesdir}/slapd.conf
 %config(noreplace) %{_sysconfdir}/openldap/check_password.conf
 %dir %attr(0700,ldap,ldap) %{_sharedstatedir}/ldap
+%dir %attr(0700,ldap,ldap) %{_sharedstatedir}/ldap/accesslog
 %dir %attr(-,ldap,ldap) %{_localstatedir}/run/openldap
 %{_unitdir}/slapd.service
 %{_datadir}/openldap-servers/
@@ -588,13 +593,15 @@ exit 0
 %{_libexecdir}/openldap/check-config.sh
 %{_libexecdir}/openldap/upgrade-db.sh
 %{_libexecdir}/openldap/generate-server-cert.sh
+%{_libexecdir}/openldap/prestart.sh
 %{_sbindir}/sl*
 %{_mandir}/man8/*
 %{_mandir}/man5/slapd*.5*
 %{_mandir}/man5/slapo-*.5*
+%config(noreplace) %attr(0640,ldap,ldap) %{_sysconfdir}/openldap/slapd.conf
 # obsolete configuration
-%ghost %config(noreplace,missingok) %attr(0640,ldap,ldap) %{_sysconfdir}/openldap/slapd.conf
-%ghost %config(noreplace,missingok) %attr(0640,ldap,ldap) %{_sysconfdir}/openldap/slapd.conf.bak
+#%ghost %config(noreplace,missingok) %attr(0640,ldap,ldap) %{_sysconfdir}/openldap/slapd.conf
+#%ghost %config(noreplace,missingok) %attr(0640,ldap,ldap) %{_sysconfdir}/openldap/slapd.conf.bak
 
 %files servers-sql
 %doc openldap-%{version}/servers/slapd/back-sql/docs/*
@@ -612,6 +619,10 @@ exit 0
 %{_mandir}/man3/*
 
 %changelog
+* Fri Apr 03 2015 ClearFoundation <developer@clearfoundation.com> - 2.4.39-6.v7
+- add upgrade support for audit log
+- remove /etc/openldap/slapd.d
+
 * Thu Dec  4 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-6
 - refix: slapd.ldif olcFrontend missing important/required objectclass (#1132094)
 
