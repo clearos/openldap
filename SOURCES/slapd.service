@@ -12,7 +12,7 @@ Type=forking
 PIDFile=/var/run/openldap/slapd.pid
 Environment="SLAPD_URLS=ldap:/// ldapi:///" "SLAPD_OPTIONS="
 EnvironmentFile=/etc/sysconfig/slapd
-ExecStartPre=/usr/libexec/openldap/check-config.sh
+ExecStartPre=/usr/libexec/openldap/prestart.sh
 ExecStart=/usr/sbin/slapd -u ldap -h ${SLAPD_URLS} $SLAPD_OPTIONS
 
 [Install]

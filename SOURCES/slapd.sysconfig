@@ -6,7 +6,15 @@
 #   (use SASL with EXTERNAL mechanism for authentication)
 # - default: ldapi:/// ldap:///
 # - example: ldapi:/// ldap://127.0.0.1/ ldap://10.0.0.1:1389/ ldaps:///
-SLAPD_URLS="ldapi:/// ldap:///"
+# IMPORTANT: see BIND_POLICY below
+SLAPD_URLS="ldap://127.0.0.1/"
+
+# ClearOS - In order to provide sane support for network card roles,
+# the BIND_POLICY parameter auto-configures the SLAPD_URLS parameter.
+# For example, BIND_POLICY="lan" will set SLAP_URLS to all the LAN
+# IPs (nothing listens on DMZs or WANs).  If you would like to avoid
+# SLAPD_URLS auto-configuration, set BIND_POLICY="custom".
+BIND_POLICY=localhost
 
 # Any custom options
 #SLAPD_OPTIONS=""
