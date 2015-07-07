@@ -1,2 +1,4 @@
 SOURCES/ltb-project-openldap-ppolicy-check-password-1.1.tar.gz
 SOURCES/openldap-2.4.39.tgz
+/Makefile
+*.src.rpm
