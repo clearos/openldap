@@ -6,7 +6,7 @@ Forked version of openldap with ClearOS changes applied
   Add __#kojibuild__ to commit message to automatically build
 
 * git clone git://github.com/clearos/openldap.git
-* cd gconsole
+* cd openldap
 * git checkout c7
 * git remote add upstream git://git.centos.org/rpms/openldap.git
 * git pull upstream c7
