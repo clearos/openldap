@@ -15,7 +15,13 @@ chown -R ldap.ldap /var/lib/ldap
 
 # Set SLAPD_URLS based on BIND_POLICY
 if [ "$BIND_POLICY" == "localhost" ]; then
-    urls="ldap://127.0.0.1/"
+    # Do not bind to localhost:389 if Samba Directory is configured to run
+    SAMBA_DIRECTORY_CONFIGURED=`grep "^driver[[:space:]]*=[[:space:]]*samba_directory" /var/clearos/accounts/config 2>/dev/null`
+    if [ -n "$SAMBA_DIRECTORY_CONFIGURED" ]; then
+        urls="ldaps://127.0.0.1/"
+    else
+        urls="ldap://127.0.0.1/"
+    fi
 elif [ "$BIND_POLICY" == "lan" ]; then
     urls="ldap://127.0.0.1/"
 

@@ -5,7 +5,7 @@
 
 Name: openldap
 Version: 2.4.39
-Release: 6%{?dist}
+Release: 6%{?dist}.1
 Summary: LDAP support libraries
 Group: System Environment/Daemons
 License: OpenLDAP
