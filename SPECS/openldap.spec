@@ -4,8 +4,8 @@
 %global check_password_version 1.1
 
 Name: openldap
-Version: 2.4.39
-Release: 6%{?dist}.1
+Version: 2.4.40
+Release: 8%{?dist}
 Summary: LDAP support libraries
 Group: System Environment/Daemons
 License: OpenLDAP
@@ -32,7 +32,6 @@ Patch3: openldap-reentrant-gethostby.patch
 Patch4: openldap-smbk5pwd-overlay.patch
 Patch5: openldap-ldaprc-currentdir.patch
 Patch6: openldap-userconfig-setgid.patch
-Patch7: openldap-dns-priority.patch
 Patch8: openldap-syncrepl-unset-tls-options.patch
 Patch9: openldap-man-sasl-nocanon.patch
 Patch10: openldap-ai-addrconfig.patch
@@ -42,6 +41,8 @@ Patch13: openldap-nss-regex-search-hashed-cacert-dir.patch
 Patch14: openldap-nss-ignore-certdb-type-prefix.patch
 Patch15: openldap-nss-certs-from-certdb-fallback-pem.patch
 Patch16: openldap-nss-pk11-freeslot.patch
+Patch17: openldap-nss-unregister-on-unload.patch
+Patch18: openldap-ssl-deadlock-revert.patch
 # fix back_perl problems with lt_dlopen()
 # might cause crashes because of symbol collisions
 # the proper fix is to link all perl modules against libperl
@@ -49,14 +50,22 @@ Patch16: openldap-nss-pk11-freeslot.patch
 Patch19: openldap-switch-to-lt_dlopenadvise-to-get-RTLD_GLOBAL-set.patch
 # ldapi sasl fix pending upstream inclusion
 Patch20: openldap-ldapi-sasl.patch
-# rwm reference counting fix, pending upstream inclusion
-Patch21: openldap-rwm-reference-counting.patch
 # upstreamed, ITS #7979
 Patch22: openldap-support-tlsv1-and-later.patch
-# upstreamed, ITS #7933
-Patch23: openldap-olcfrontend-config.patch
 # pending upstream inclusion, ITS #7744
 Patch24: openldap-man-tls-reqcert.patch
+# already in upstream, see ITS #8105, incorporated by commits 25bbf11 and fb1bf1c
+Patch25: openldap-perl-fix-moduleconfig-config.patch
+# already in upstream, see ITS#8150, incorporated by commit 39b05c7
+Patch26: openldap-fix-missing-frontend-indexing.patch
+Patch27: openldap-nss-ciphersuite-handle-masks-correctly.patch
+Patch28: openldap-nss-ciphers-use-nss-defaults.patch
+# CVE-2015-6908, ITS#8240
+Patch29: openldap-ITS8240-remove-obsolete-assert.patch
+
+# check-password module specific patches
+Patch90: check-password-makefile.patch
+Patch91: check-password.patch
 
 # Fedora specific patches
 Patch100: openldap-autoconf-pkgconfig-nss.patch
@@ -67,7 +76,7 @@ BuildRequires: glibc-devel, libtool, libtool-ltdl-devel, groff, perl, perl-devel
 # smbk5pwd overlay:
 BuildRequires: openssl-devel
 Requires: nss-tools
-Requires(post): rpm, coreutils
+Requires(post): rpm, coreutils, findutils
 
 %description
 OpenLDAP is an open source suite of LDAP (Lightweight Directory Access
@@ -162,7 +171,6 @@ AUTOMAKE=%{_bindir}/true autoreconf -fi
 %patch4 -p1
 %patch5 -p1
 %patch6 -p1
-%patch7 -p1
 %patch8 -p1
 %patch9 -p1
 %patch10 -p1
@@ -172,12 +180,17 @@ AUTOMAKE=%{_bindir}/true autoreconf -fi
 %patch14 -p1
 %patch15 -p1
 %patch16 -p1
+%patch17 -p1
+%patch18 -p1
 %patch19 -p1
 %patch20 -p1
-%patch21 -p1
 %patch22 -p1
-%patch23 -p1
 %patch24 -p1
+%patch25 -p1
+%patch26 -p1
+%patch27 -p1
+%patch28 -p1
+%patch29 -p1
 
 %patch102 -p1
 
@@ -195,6 +208,11 @@ done
 
 popd
 
+pushd ltb-project-openldap-ppolicy-check-password-%{check_password_version}
+%patch90 -p1
+%patch91 -p1
+popd
+
 %build
 
 %ifarch s390 s390x
@@ -205,7 +223,7 @@ popd
 export LDFLAGS="-pie"
 # avoid stray dependencies (linker flag --as-needed)
 # enable experimental support for LDAP over UDP (LDAP_CONNECTIONLESS)
-export CFLAGS="${CFLAGS} %{optflags} -Wl,--as-needed -DLDAP_CONNECTIONLESS"
+export CFLAGS="${CFLAGS} %{optflags} -Wl,-z,relro,-z,now,--as-needed -DLDAP_CONNECTIONLESS"
 
 pushd openldap-%{version}
 %configure \
@@ -270,7 +288,9 @@ popd
 
 # install check_password module
 pushd ltb-project-openldap-ppolicy-check-password-%{check_password_version}
-install -m 755 check_password.so %{buildroot}%{_libdir}/openldap/
+mv check_password.so check_password.so.%{check_password_version}
+ln -s check_password.so.%{check_password_version} %{buildroot}%{_libdir}/openldap/check_password.so
+install -m 755 check_password.so.%{check_password_version} %{buildroot}%{_libdir}/openldap/
 # install -m 644 README %{buildroot}%{_libdir}/openldap
 install -d -m 755 %{buildroot}%{_sysconfdir}/openldap
 cat > %{buildroot}%{_sysconfdir}/openldap/check_password.conf <<EOF
@@ -283,11 +303,8 @@ cat > %{buildroot}%{_sysconfdir}/openldap/check_password.conf <<EOF
 #minDigit 0
 #minPunct 0
 EOF
-sed -i -e 's/check_password\.so/check_password.so.%{check_password_version}/' README
 mv README{,.check_pwd}
 popd
-# rename the library
-mv %{buildroot}%{_libdir}/openldap/check_password.so{,.%{check_password_version}}
 
 # setup directories for TLS certificates
 mkdir -p %{buildroot}%{_sysconfdir}/openldap/certs
@@ -364,19 +381,22 @@ chmod 0644 %{buildroot}%{_datadir}/openldap-servers/DB_CONFIG.example
 
 # remove files which we don't want packaged
 rm -f %{buildroot}%{_libdir}/*.la
+mv %{buildroot}%{_libdir}/openldap/check_password.so{,.tmp}
 rm -f %{buildroot}%{_libdir}/openldap/*.so
+mv %{buildroot}%{_libdir}/openldap/check_password.so{.tmp,}
 
 rm -f %{buildroot}%{_localstatedir}/openldap-data/DB_CONFIG.example
 rmdir %{buildroot}%{_localstatedir}/openldap-data
 
 %post
-
-/sbin/ldconfig
-
 # create certificate database
 %{_libexecdir}/openldap/create-certdb.sh >&/dev/null || :
 
-%postun -p /sbin/ldconfig
+%postun
+#update only on package erase
+if [ $1 == 0 ]; then
+    /sbin/ldconfig
+fi
 
 %pre servers
 
@@ -401,7 +421,8 @@ exit 0
 
 %post servers
 
-/sbin/ldconfig
+/sbin/ldconfig -n %{_libdir}/openldap
+
 %systemd_post slapd.service
 
 # generate sample TLS certificate for server (will not replace)
@@ -473,7 +494,7 @@ exit 0
 
 %postun servers
 
-/sbin/ldconfig
+/sbin/ldconfig ${_libdir}/openldap
 %systemd_postun_with_restart slapd.service
 
 
@@ -619,9 +640,49 @@ exit 0
 %{_mandir}/man3/*
 
 %changelog
-* Fri Apr 03 2015 ClearFoundation <developer@clearfoundation.com> - 2.4.39-6.v7
+* Wed Dec 02 2015 ClearFoundation <developer@clearfoundation.com> - 2.4.40-8.v7
 - add upgrade support for audit log
 - remove /etc/openldap/slapd.d
+
+* Wed Sep 23 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-8
+- NSS does not support string ordering (#1231522)
+- implement and correct order of parsing attributes (#1231522)
+- add multi_mask and multi_strength to correctly handle sets of attributes (#1231522)
+- add new cipher suites and correct AES-GCM attributes (#1245279)
+- correct DEFAULT ciphers handling to exclude eNULL cipher suites (#1245279)
+
+* Mon Sep 14 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-7
+- Merge two MozNSS cipher suite definition patches into one. (#1245279)
+- Use what NSS considers default for DEFAULT cipher string. (#1245279)
+- Remove unnecesary defaults from ciphers' definitions (#1245279)
+
+* Tue Sep 01 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-6
+- fix: OpenLDAP shared library destructor triggers memory leaks in NSPR (#1249977)
+
+* Fri Jul 24 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-5
+- enhancement: support TLS 1.1 and later (#1231522,#1160467)
+- fix: openldap ciphersuite parsing code handles masks incorrectly (#1231522)
+- fix the patch in commit da1b5c (fix: OpenLDAP crash in NSS shutdown handling) (#1231228)
+
+* Mon Jun 29 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-4
+- fix: rpm -V complains (#1230263) -- make the previous fix do what was intended
+
+* Mon Jun 22 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-3
+- fix: rpm -V complains (#1230263)
+
+* Wed Jun  3 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-2
+- fix: missing frontend database indexing (#1226600)
+
+* Wed May 20 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-1
+- new upstream release (#1147982)
+- fix: PIE and RELRO check (#1092562)
+- fix: slaptest doesn't convert perlModuleConfig lines (#1184585)
+- fix: OpenLDAP crash in NSS shutdown handling (#1158005)
+- fix: slapd.service may fail to start if binding to NIC ip (#1198781)
+- fix: deadlock during SSL_ForceHandshake when getting connection to replica (#1125152)
+- improve check_password (#1174723, #1196243)
+- provide an unversioned symlink to check_password.so.1.1 (#1174634)
+- add findutils to requires (#1209229)
 
 * Thu Dec  4 2014 Jan Synáček <jsynacek@redhat.com> - 2.4.39-6
 - refix: slapd.ldif olcFrontend missing important/required objectclass (#1132094)
