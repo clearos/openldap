@@ -5,7 +5,7 @@
 
 Name: openldap
 Version: 2.4.40
-Release: 8%{?dist}
+Release: 9%{?dist}
 Summary: LDAP support libraries
 Group: System Environment/Daemons
 License: OpenLDAP
@@ -62,6 +62,8 @@ Patch27: openldap-nss-ciphersuite-handle-masks-correctly.patch
 Patch28: openldap-nss-ciphers-use-nss-defaults.patch
 # CVE-2015-6908, ITS#8240
 Patch29: openldap-ITS8240-remove-obsolete-assert.patch
+# this is a temporary fix for #1294385, it should be solved properly, backported from #1144294
+Patch30: openldap-temporary-ssl-thr-init-race.patch
 
 # check-password module specific patches
 Patch90: check-password-makefile.patch
@@ -191,6 +193,7 @@ AUTOMAKE=%{_bindir}/true autoreconf -fi
 %patch27 -p1
 %patch28 -p1
 %patch29 -p1
+%patch30 -p1
 
 %patch102 -p1
 
@@ -640,9 +643,12 @@ exit 0
 %{_mandir}/man3/*
 
 %changelog
-* Wed Dec 02 2015 ClearFoundation <developer@clearfoundation.com> - 2.4.40-8.v7
+* Tue May 10 2016 ClearFoundation <developer@clearfoundation.com> - 2.4.40-9.v7
 - add upgrade support for audit log
 - remove /etc/openldap/slapd.d
+
+* Mon Feb 22 2016 Matúš Honěk <mhonek@redhat.com> - 2.4.40-9
+- fix: nslcd segfaults due to incorrect mutex initialization (#1294385)
 
 * Wed Sep 23 2015 Matúš Honěk <mhonek@redhat.com> - 2.4.40-8
 - NSS does not support string ordering (#1231522)
