@@ -82,17 +82,18 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
  			break;
  		}
  
-@@ -654,7 +665,9 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
+@@ -654,7 +665,10 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
  			}
  		} else {
  			int mask = 0;
 +			int multi_mask = 0;
++			int negative_mask = 0;
  			int strength = 0;
 +			int multi_strength = 0;
  			int protocol = 0;
  			char *c;
  
-@@ -665,16 +678,23 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
+@@ -665,16 +678,21 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
  					*c++ = '\0';
  				}
  
@@ -100,11 +101,9 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
 -					mask |= SSL_RSA;
 +				if ((!strcmp(cipher, "RSA")) || (!strcmp(cipher, "kRSA"))) {
 +					mask |= SSL_kRSA;
-+				} if (!strcmp(cipher, "aRSA")) {
-+					if (!(mask & SSL_kECDH)) //kECDH means no aRSA
-+						mask |= SSL_aRSA;
-+					else if (mask & SSL_kECDHE) //kECDH and aRSA means kECDHE
-+						mask |= SSL_kECDHE|SSL_aRSA;
++				} else if (!strcmp(cipher, "aRSA")) {
++					mask |= SSL_aRSA;
++					negative_mask |= SSL_kECDH;
  				} else if ((!strcmp(cipher, "NULL")) || (!strcmp(cipher, "eNULL"))) {
  					mask |= SSL_eNULL;
  				} else if (!strcmp(cipher, "AES128")) {
@@ -119,7 +118,7 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
  				} else if (!strcmp(cipher, "3DES")) {
  					mask |= SSL_3DES;
  				} else if (!strcmp(cipher, "DES")) {
-@@ -685,27 +705,42 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
+@@ -685,28 +705,43 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
  					mask |= SSL_RC2;
  				} else if (!strcmp(cipher, "MD5")) {
  					mask |= SSL_MD5;
@@ -131,7 +130,8 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
 +					mask |= SSL_SHA384;
 +				} else if ((!strcmp(cipher, "SHA")) || (!strcmp(cipher, "SHA1"))) {
 +					mask |= SSL_SHA1;
- 				} else if (!strcmp(cipher, "EDH")) {
+-				} else if (!strcmp(cipher, "EDH")) {
++				} else if ((!strcmp(cipher, "EDH")) || (!strcmp(cipher, "DH"))) {
  					mask |= SSL_kEDH;
 -				} else if (!strcmp(cipher, "DSS")) {
 +				} else if ((!strcmp(cipher, "DSS")) || (!strcmp(cipher, "aDSS"))) {
@@ -151,8 +151,7 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
 +				} else if (!strcmp(cipher, "kECDHr")) {
 +					mask |= SSL_kECDH|SSL_aRSA;
 +				} else if (!strcmp(cipher, "kECDH")) {
-+					if (!(mask & SSL_aRSA)) //kECDH does not use aRSA
-+						mask |= SSL_kECDH;
++					mask |= SSL_kECDH;
 +				} else if (!strcmp(cipher, "aECDH")) {
  					mask |= SSL_kECDH;
 +				} else if (!strcmp(cipher, "EECDH")) {
@@ -166,8 +165,10 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
 +					multi_mask |= SSL_ECDH;
 +				} else if ((!strcmp(cipher, "ECDSA")) || (!strcmp(cipher, "aECDSA"))) {
  					mask |= SSL_aECDSA;
++					negative_mask |= SSL_kECDH;
  				} else if (!strcmp(cipher, "SSLv2")) {
  					protocol |= SSL2;
+ 				} else if (!strcmp(cipher, "SSLv3")) {
 @@ -721,12 +756,12 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
  					strength |= SSL_MEDIUM;
  				} else if (!strcmp(cipher, "LOW")) {
@@ -183,7 +184,7 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
  				}
  
  				if (c)
-@@ -734,23 +769,37 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
+@@ -734,23 +769,39 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
  
  			} /* while */
  
@@ -196,7 +197,7 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
 +			 * if more than one mask is provided then AND logic applies (to match openssl)
  			 */
 -			if (mask || strength || protocol) {
-+			if (mask || multi_mask || strength || multi_strength || protocol) {
++			if (mask || negative_mask || multi_mask || strength || multi_strength || protocol) {
  				for (i=0; i<ciphernum; i++) {
 -					if (((ciphers_def[i].attr & mask) ||
 -						 (ciphers_def[i].strength & strength) ||
@@ -229,6 +230,8 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
 +						continue;
 +					if ((multi_strength & SSL_EXPORT) &&
 +					    !(ciphers_def[i].strength & (SSL_EXPORT40|SSL_EXPORT56)))
++						continue;
++					if ( negative_mask & ciphers_def[i].attr )
 +						continue;
 +					cipher_list[i] = action;
  				}
