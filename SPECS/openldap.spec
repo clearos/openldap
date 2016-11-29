@@ -5,7 +5,7 @@
 
 Name: openldap
 Version: 2.4.40
-Release: 9%{?dist}.1
+Release: 13%{?dist}
 Summary: LDAP support libraries
 Group: System Environment/Daemons
 License: OpenLDAP
@@ -27,11 +27,13 @@ Source56: libexec-prestart.sh
 
 # patches for 2.4
 Patch0: openldap-manpages.patch
+Patch1: openldap-ppolicy-loglevels.patch
 Patch2: openldap-sql-linking.patch
 Patch3: openldap-reentrant-gethostby.patch
 Patch4: openldap-smbk5pwd-overlay.patch
 Patch5: openldap-ldaprc-currentdir.patch
 Patch6: openldap-userconfig-setgid.patch
+Patch7: openldap-allop-overlay.patch
 Patch8: openldap-syncrepl-unset-tls-options.patch
 Patch9: openldap-man-sasl-nocanon.patch
 Patch10: openldap-ai-addrconfig.patch
@@ -50,8 +52,11 @@ Patch18: openldap-ssl-deadlock-revert.patch
 Patch19: openldap-switch-to-lt_dlopenadvise-to-get-RTLD_GLOBAL-set.patch
 # ldapi sasl fix pending upstream inclusion
 Patch20: openldap-ldapi-sasl.patch
+# coverity - missin_unlock in servers/slapd/overlays/accesslog.c
+Patch21: openldap-missing-unlock-in-accesslog-overlay.patch
 # upstreamed, ITS #7979
 Patch22: openldap-support-tlsv1-and-later.patch
+Patch23: openldap-module-passwd-sha2.patch
 # pending upstream inclusion, ITS #7744
 Patch24: openldap-man-tls-reqcert.patch
 # already in upstream, see ITS #8105, incorporated by commits 25bbf11 and fb1bf1c
@@ -64,10 +69,20 @@ Patch28: openldap-nss-ciphers-use-nss-defaults.patch
 Patch29: openldap-ITS8240-remove-obsolete-assert.patch
 # this is a temporary fix for #1294385, it should be solved properly, backported from #1144294
 Patch30: openldap-temporary-ssl-thr-init-race.patch
+# already in upstream (2.4.41), see ITS#8003
+Patch31: openldap-ITS8003-fix-off-by-one-in-LDIF-length.patch
+# already in upstream, see ITS#8337
+Patch32: openldap-ITS8337-fix-missing-olcDbChecksum-config-attr.patch
+# ITS#8329
+Patch33: openldap-ITS8329-back_sql-id_query.patch
+Patch34: openldap-nss-protocol-version-new-api.patch
+Patch35: openldap-ITS8428-init-sc_writewait.patch
+Patch36: openldap-bdb_idl_fetch_key-correct-key-pointer.patch
 
 # check-password module specific patches
 Patch90: check-password-makefile.patch
 Patch91: check-password.patch
+Patch92: check-password-loglevels.patch
 
 # Fedora specific patches
 Patch100: openldap-autoconf-pkgconfig-nss.patch
@@ -168,11 +183,13 @@ ln -s %{_includedir}/nspr4 include/nspr
 AUTOMAKE=%{_bindir}/true autoreconf -fi
 
 %patch0 -p1
+%patch1 -p1
 %patch2 -p1
 %patch3 -p1
 %patch4 -p1
 %patch5 -p1
 %patch6 -p1
+%patch7 -p1
 %patch8 -p1
 %patch9 -p1
 %patch10 -p1
@@ -186,7 +203,9 @@ AUTOMAKE=%{_bindir}/true autoreconf -fi
 %patch18 -p1
 %patch19 -p1
 %patch20 -p1
+%patch21 -p1
 %patch22 -p1
+%patch23 -p1
 %patch24 -p1
 %patch25 -p1
 %patch26 -p1
@@ -194,12 +213,27 @@ AUTOMAKE=%{_bindir}/true autoreconf -fi
 %patch28 -p1
 %patch29 -p1
 %patch30 -p1
+%patch31 -p1
+%patch32 -p1
+%patch33 -p1
+%patch34 -p1
+%patch35 -p1
+%patch36 -p1
 
 %patch102 -p1
 
 # build smbk5pwd with other overlays
 ln -s ../../../contrib/slapd-modules/smbk5pwd/smbk5pwd.c servers/slapd/overlays
 mv contrib/slapd-modules/smbk5pwd/README contrib/slapd-modules/smbk5pwd/README.smbk5pwd
+# build allop with other overlays
+ln -s ../../../contrib/slapd-modules/allop/allop.c servers/slapd/overlays
+mv contrib/slapd-modules/allop/README contrib/slapd-modules/allop/README.allop
+mv contrib/slapd-modules/allop/slapo-allop.5 doc/man/man5/slapo-allop.5
+# build sha2 with other overlays
+ln -s ../../../contrib/slapd-modules/passwd/sha2/{sha2.{c,h},slapd-sha2.c} \
+      servers/slapd/overlays
+ls servers/slapd/overlays
+mv contrib/slapd-modules/passwd/sha2/README{,.sha2}
 
 mv servers/slapd/back-perl/README{,.back_perl}
 
@@ -214,6 +248,7 @@ popd
 pushd ltb-project-openldap-ppolicy-check-password-%{check_password_version}
 %patch90 -p1
 %patch91 -p1
+%patch92 -p1
 popd
 
 %build
@@ -583,6 +618,7 @@ exit 0
 %{_datadir}/openldap-servers/
 %{_libdir}/openldap/accesslog*
 %{_libdir}/openldap/auditlog*
+%{_libdir}/openldap/allop*
 %{_libdir}/openldap/back_dnssrv*
 %{_libdir}/openldap/back_ldap*
 %{_libdir}/openldap/back_meta*
@@ -605,6 +641,7 @@ exit 0
 %{_libdir}/openldap/retcode*
 %{_libdir}/openldap/rwm*
 %{_libdir}/openldap/seqmod*
+%{_libdir}/openldap/pw-sha2*
 %{_libdir}/openldap/smbk5pwd*
 %{_libdir}/openldap/sssvlv*
 %{_libdir}/openldap/syncprov*
@@ -643,9 +680,33 @@ exit 0
 %{_mandir}/man3/*
 
 %changelog
-* Tue May 10 2016 ClearFoundation <developer@clearfoundation.com> - 2.4.40-9.v7
+* Mon Nov 28 2016 ClearFoundation <developer@clearfoundation.com> - 2.4.40-13.v7
 - add upgrade support for audit log
 - remove /etc/openldap/slapd.d
+
+* Wed Aug 17 2016 Matus Honek <mhonek@redhat.com> - 2.4.40-13
+- fix: Bad log levels in check_password module
+- fix: We can't search expected entries from LDAP server
+- fix: OpenLDAP ciphersuite parsing doesn't match OpenSSL ciphers man page
+  + Add TLS_DHE_DSS_WITH_AES_256_GCM_SHA384 to list of ciphers
+  + Add DH cipher string parsing option
+  + Correct handling kECDH ciphers with aRSA or aECDSA
+
+* Fri Jul  1 2016 Matus Honek <mhonek@redhat.com> - 2.4.40-12
+- fix: slapd crash in do_search (#1316450)
+- fix: Setting olcTLSProtocolMin does not change supported protocols (#1249093)
+
+* Mon May 30 2016 Matus Honek <mhonek@redhat.com> - 2.4.40-11
+- fix: correct inconsistent slapd.d directory permissions (#1255433)
+
+* Mon May 30 2016 Matus Honek <mhonek@redhat.com> - 2.4.40-10
+- fix: slapd fails to start on boot (#1315958)
+- fix: id_query option is not available after rebasing openldap to 2.4.39 (#1311832)
+- Include sha2 module (#1292568)
+- Compile AllOp together with other overlays (#990893)
+- Missing mutex unlock in accesslog overlay (#1261003)
+- ITS#8337 fix missing olcDbChecksum config attr (#1292590)
+- ITS#8003 fix off-by-one in LDIF length (#1292619)
 
 * Mon Feb 22 2016 Matúš Honěk <mhonek@redhat.com> - 2.4.40-9
 - fix: nslcd segfaults due to incorrect mutex initialization (#1294385)

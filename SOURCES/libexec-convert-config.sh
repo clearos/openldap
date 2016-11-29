@@ -52,7 +52,7 @@ fi
 tmp_convert=`mktemp --tmpdir=/var/run/openldap`
 
 if [ `id -u` -eq 0 ]; then
-	install -d --owner $SLAPD_USER --group `id -g $SLAPD_USER` --mode 0700 "$SLAPD_CONFIG_DIR" &>>$tmp_convert
+	install -d --owner $SLAPD_USER --group `id -g $SLAPD_USER` --mode 0750 "$SLAPD_CONFIG_DIR" &>>$tmp_convert
 	if [ $SLAPD_CONFIG_FILE_FORMAT = ldif ]; then
 		run_as_ldap "/usr/sbin/slapadd -F \"$SLAPD_CONFIG_DIR\" -n 0 -l \"$SLAPD_CONFIG_FILE\"" &>>$tmp_convert
 	else
@@ -61,7 +61,7 @@ if [ `id -u` -eq 0 ]; then
 	retcode=$?
 else
 	error "You are not root! Permission will not be set."
-	install -d --mode 0700 "$SLAPD_CONFIG_DIR" &>>$tmp_convert
+	install -d --mode 0750 "$SLAPD_CONFIG_DIR" &>>$tmp_convert
 	if [ $SLAPD_CONFIG_FILE_FORMAT = ldif ]; then
 		/usr/sbin/slapadd -F "$SLAPD_CONFIG_DIR" -n 0 -l "$SLAPD_CONFIG_FILE" &>>$tmp_convert
 	else

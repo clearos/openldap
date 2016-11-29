@@ -1,6 +1,6 @@
 [Unit]
 Description=OpenLDAP Server Daemon
-After=syslog.target network-online.target NetworkManager-wait-online.service
+After=syslog.target network-online.target
 Documentation=man:slapd
 Documentation=man:slapd-config
 Documentation=man:slapd-hdb
