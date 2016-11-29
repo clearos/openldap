@@ -680,7 +680,7 @@ exit 0
 %{_mandir}/man3/*
 
 %changelog
-* Mon Nov 28 2016 ClearFoundation <developer@clearfoundation.com> - 2.4.40-13.v7
+* Tue Nov 29 2016 ClearFoundation <developer@clearfoundation.com> - 2.4.40-13.v7
 - add upgrade support for audit log
 - remove /etc/openldap/slapd.d
 
