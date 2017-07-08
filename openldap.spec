@@ -409,7 +409,7 @@ popd
 mkdir -p %{buildroot}%{_sysconfdir}/openldap/certs
 
 # setup data and runtime directories
-mkdir -p %{buildroot}/var/lib/ldap
+mkdir -p %{buildroot}/var/lib/ldap/accesslog
 mkdir -p %{buildroot}/var/run/openldap
 
 # remove build root from config files and manual pages
@@ -457,9 +457,10 @@ chmod 644 %{buildroot}/%{_libdir}/lib*.*a
 # slapd.conf(5) is obsoleted since 2.3, see slapd-config(5)
 # new configuration will be generated in %post
 mkdir -p %{buildroot}/%{_datadir}/openldap-servers
-mkdir %{buildroot}/%{_sysconfdir}/openldap/slapd.d
-rm -f %{buildroot}/%{_sysconfdir}/openldap/slapd.conf
-install -m 644 %SOURCE4 %{buildroot}/%{_datadir}/openldap-servers/slapd.conf.obsolete
+# ClearFoundation - disable this for now
+# mkdir %{buildroot}/%{_sysconfdir}/openldap/slapd.d
+# rm -f %{buildroot}/%{_sysconfdir}/openldap/slapd.conf
+# install -m 644 %SOURCE4 %{buildroot}/%{_datadir}/openldap-servers/slapd.conf.obsolete
 
 # move example configuration
 mv %{buildroot}/%{_sysconfdir}/openldap/slapd.ldif %{buildroot}/%{_datadir}/openldap-servers/slapd.ldif.example
@@ -548,6 +549,7 @@ if [ $1 -eq 2 ]; then
 			# backup location
 			backupdir=backup.$(date +%%s)
 			backupfile=${backupdir}/backup.ldif
+			backuplog=${backupdir}/backuplog.ldif
 			backupcmd="cp -a"
 
 			mkdir -p ${backupdir}
@@ -566,14 +568,18 @@ if [ $1 -eq 2 ]; then
 			# export the database if possible
 			if [ $? -eq 0 ]; then
 				if [ -f %{_sysconfdir}/openldap/slapd.conf ]; then
-					slapcat -f %{_sysconfdir}/openldap/slapd.conf -l $backupfile &>/dev/null
+					slapcat -f %{_sysconfdir}/openldap/slapd.conf -n2 -l $backuplog &>/dev/null
+					slapcat -f %{_sysconfdir}/openldap/slapd.conf -n3 -l $backupfile &>/dev/null
 				else
-					slapcat -F %{_sysconfdir}/openldap/slapd.d -l $backupfile &>/dev/null
+					slapcat -F %{_sysconfdir}/openldap/slapd.d -n2 -l $backuplog &>/dev/null
+					slapcat -F %{_sysconfdir}/openldap/slapd.d -n3 -l $backupfile &>/dev/null
 				fi
 
 				if [ $? -eq 0 ]; then
 					chmod 0400 $backupfile
+					chmod 0400 $backuplog
 					ln -sf $backupfile upgrade.ldif
+					ln -sf $backuplog upgradelog.ldif
 					backupcmd=mv
 				fi
 			fi
@@ -607,7 +613,9 @@ exit 0
 %{_libexecdir}/openldap/generate-server-cert.sh -o &>/dev/null || :
 
 # generate configuration in slapd.d
-if ! ls -d %{_sysconfdir}/openldap/slapd.d/* &>/dev/null; then
+# ClearFoundation - disable this for now
+# if ! ls -d %{_sysconfdir}/openldap/slapd.d/* &>/dev/null; then
+if [ 1 -eq 0 ]; then
 
 	# fresh installation
 	if [ ! -f %{_sysconfdir}/openldap/slapd.conf ]; then
@@ -623,12 +631,12 @@ fi
 
 # finish database migration (see %pre)
 if [ -f %{_sharedstatedir}/ldap/upgrade.ldif ]; then
-	if [ -f %{_sysconfdir}/openldap/slapd.conf ]; then
-		runuser -m -s /usr/sbin/slapadd -- ldap -q -f %{_sysconfdir}/openldap/slapd.conf -l %{_sharedstatedir}/ldap/upgrade.ldif &>/dev/null
-	else
-		runuser -m -s /usr/sbin/slapadd -- ldap -q -F %{_sysconfdir}/openldap/slapd.d -l %{_sharedstatedir}/ldap/upgrade.ldif &>/dev/null
-	fi
+	runuser -m -s /usr/sbin/slapadd -- ldap -q -n3 -f %{_sysconfdir}/openldap/slapd.conf -l %{_sharedstatedir}/ldap/upgrade.ldif &>/dev/null
 	rm -f %{_sharedstatedir}/ldap/upgrade.ldif
+fi
+if [ -f %{_sharedstatedir}/ldap/upgradelog.ldif ]; then
+	runuser -m -s /usr/sbin/slapadd -- ldap -q -n2 -f %{_sysconfdir}/openldap/slapd.conf -l %{_sharedstatedir}/ldap/upgradelog.ldif &>/dev/null
+	rm -f %{_sharedstatedir}/ldap/upgradelog.ldif
 fi
 
 # restart after upgrade
@@ -734,7 +742,8 @@ exit 0
 %doc README.schema
 %doc ltb-project-openldap-ppolicy-check-password-%{check_password_version}/README.check_pwd
 %attr(0755,root,root) %{_sysconfdir}/rc.d/init.d/slapd
-%attr(0750,ldap,ldap) %dir %config(noreplace) %{_sysconfdir}/openldap/slapd.d
+# ClearFoundation - disable this for now
+# %attr(0750,ldap,ldap) %dir %config(noreplace) %{_sysconfdir}/openldap/slapd.d
 %attr(0644,root,root) %config(noreplace) %{_sysconfdir}/sysconfig/ldap
 %attr(0755,root,root) %dir %config(noreplace) %{_sysconfdir}/openldap/schema
 %attr(0644,root,root) %config(noreplace) %{_sysconfdir}/openldap/schema/*.schema*
@@ -745,6 +754,7 @@ exit 0
 %attr(0644,root,root) %{_mandir}/man5/slapd*.5*
 %attr(0644,root,root) %{_mandir}/man5/slapo-*.5*
 %attr(0700,ldap,ldap) %dir /var/lib/ldap
+%attr(0700,ldap,ldap) %dir /var/lib/ldap/accesslog
 %attr(0755,ldap,ldap) %dir /var/run/openldap
 %attr(0755,root,root) %dir %{_libdir}/openldap
 %attr(0755,root,root) %{_libdir}/openldap/[^b]*
@@ -783,6 +793,11 @@ exit 0
 %attr(0644,root,root)      %{evolution_connector_libdir}/*.a
 
 %changelog
+* Tue Apr 04 2017 ClearFoundation <developer@clearfoundation.com> - 2.4.40-16.clear
+- add upgrade support for audit log
+- add bind security policy to init script
+- remove /etc/openldap/slapd.d
+
 * Tue Dec  6 2016 Matus Honek <mhonek@redhat.com> - 2.4.40-16
 - NSS: re-register NSS_Shutdown callback (#1071520)
 

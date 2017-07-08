@@ -3,7 +3,7 @@
 # slapd   This shell script takes care of starting and stopping
 #         ldap servers (slapd).
 #
-# chkconfig: - 27 73
+# chkconfig: 2345 27 73
 # description: LDAP stands for Lightweight Directory Access Protocol, used \
 #              for implementing the industry standard directory services.
 # processname: slapd
@@ -23,11 +23,16 @@
 #              for implementing the industry standard directory services.
 ### END INIT INFO
 
+# Modified by ClearFoundation
+
 # Source function library.
 . /etc/init.d/functions
 
+# Source auto-configure functions
+[ -e /etc/init.d/functions-automagic ] && source /etc/init.d/functions-automagic
+
 # Define default values of options allowed in /etc/sysconfig/ldap
-SLAPD_LDAP="yes"
+SLAPD_LDAP="no"
 SLAPD_LDAPI="no"
 SLAPD_LDAPS="no"
 SLAPD_URLS=""
@@ -48,6 +53,42 @@ pidfile=/var/run/slapd.pid
 slapd_pidfile=/var/run/openldap/slapd.pid
 
 RETVAL=0
+
+#
+# Network access automagic
+#
+function automagic() {
+    # Bail if no-automagic is required
+    if [ "$AUTOMAGIC" == "off" ]; then
+        return
+    fi
+
+    if [ "$BIND_POLICY" == "all" ]; then
+        harg="ldaps://"
+    else
+        harg="ldaps://127.0.0.1"
+    fi
+
+    # Do not bind to localhost if accounts system is using Samba Directory
+    IS_ACCOUNTS=`grep "^driver[[:space:]]*=[[:space:]]*samba_directory" /var/clearos/accounts/config 2>/dev/null`
+    if [ -z "$IS_ACCOUNTS" ]; then
+        harg="ldap://127.0.0.1/ $harg"
+    fi
+
+    # Build URL list for LAN interfaces
+    if [ "$BIND_POLICY" == "lan" ]; then
+        if [ -x '/usr/sbin/network' ]; then
+            for LANIP in `/usr/sbin/network --get-lan-ips | grep -v debug`; do
+                harg="$harg ldaps://$LANIP/"
+            done
+        else
+            for LANIF in $AUTOMAGIC_LANIFS; do
+                IP=`ip addr show dev $LANIF | grep $LANIF$ | awk '{ print $2 }' | sed 's/\/.*//'` 
+                harg="$harg ldaps://$IP/"
+            done
+        fi
+    fi
+}
 
 #
 # Pass commands given in $2 and later to "test" run as user given in $1.
@@ -169,12 +210,14 @@ function configtest() {
 
 function start() {
 	[ -x $slapd ] || exit 5
+	[ -x /usr/sbin/prestart-ldap ] && /usr/sbin/prestart-ldap
 	[ `id -u` -eq 0 ] || exit 4
-	configtest
+	#configtest
+	automagic
 	# Define a couple of local variables which we'll need. Maybe.
 	user=ldap
 	prog=`basename ${slapd}`
-	harg="$SLAPD_URLS"
+	harg="$harg $SLAPD_URLS"
 	if test x$SLAPD_LDAP = xyes ; then
 		harg="$harg ldap:///"
 	fi
@@ -201,6 +244,8 @@ function start() {
 		ln $slapd_pidfile $pidfile
 	fi
 	echo
+
+	[ -x /usr/sbin/poststart-ldap ] && /usr/sbin/poststart-ldap
 	return $RETVAL
 }
 
