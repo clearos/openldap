@@ -4,8 +4,8 @@
 %global check_password_version 1.1
 
 Name: openldap
-Version: 2.4.40
-Release: 13%{?dist}
+Version: 2.4.44
+Release: 5%{?dist}
 Summary: LDAP support libraries
 Group: System Environment/Daemons
 License: OpenLDAP
@@ -58,25 +58,17 @@ Patch22: openldap-support-tlsv1-and-later.patch
 Patch23: openldap-module-passwd-sha2.patch
 # pending upstream inclusion, ITS #7744
 Patch24: openldap-man-tls-reqcert.patch
-# already in upstream, see ITS #8105, incorporated by commits 25bbf11 and fb1bf1c
-Patch25: openldap-perl-fix-moduleconfig-config.patch
-# already in upstream, see ITS#8150, incorporated by commit 39b05c7
-Patch26: openldap-fix-missing-frontend-indexing.patch
 Patch27: openldap-nss-ciphersuite-handle-masks-correctly.patch
 Patch28: openldap-nss-ciphers-use-nss-defaults.patch
-# CVE-2015-6908, ITS#8240
-Patch29: openldap-ITS8240-remove-obsolete-assert.patch
 # this is a temporary fix for #1294385, it should be solved properly, backported from #1144294
 Patch30: openldap-temporary-ssl-thr-init-race.patch
-# already in upstream (2.4.41), see ITS#8003
-Patch31: openldap-ITS8003-fix-off-by-one-in-LDIF-length.patch
-# already in upstream, see ITS#8337
-Patch32: openldap-ITS8337-fix-missing-olcDbChecksum-config-attr.patch
-# ITS#8329
-Patch33: openldap-ITS8329-back_sql-id_query.patch
 Patch34: openldap-nss-protocol-version-new-api.patch
 Patch35: openldap-ITS8428-init-sc_writewait.patch
 Patch36: openldap-bdb_idl_fetch_key-correct-key-pointer.patch
+Patch37: openldap-ITS8655-fix-double-free-on-paged-search-with-pagesize-0.patch
+
+# upstream ITS#8484
+Patch60: openldap-nss-reregister-nss-shutdown-callback.patch
 
 # check-password module specific patches
 Patch90: check-password-makefile.patch
@@ -206,18 +198,14 @@ AUTOMAKE=%{_bindir}/true autoreconf -fi
 %patch22 -p1
 %patch23 -p1
 %patch24 -p1
-%patch25 -p1
-%patch26 -p1
 %patch27 -p1
 %patch28 -p1
-%patch29 -p1
 %patch30 -p1
-%patch31 -p1
-%patch32 -p1
-%patch33 -p1
 %patch34 -p1
 %patch35 -p1
 %patch36 -p1
+%patch37 -p1
+%patch60 -p1
 
 %patch102 -p1
 
@@ -307,6 +295,12 @@ pushd openldap-%{version}
 	--libexecdir=%{_libdir}
 
 make %{_smp_mflags}
+
+# build mdb_* tools
+pushd libraries/liblmdb
+export XCFLAGS="$CFLAGS"
+make %{_smp_mflags}
+popd
 popd
 
 pushd ltb-project-openldap-ppolicy-check-password-%{check_password_version}
@@ -321,6 +315,9 @@ mkdir -p %{buildroot}%{_libdir}/
 
 pushd openldap-%{version}
 make install DESTDIR=%{buildroot} STRIP=""
+pushd libraries/liblmdb
+make install DESTDIR=%{buildroot}
+popd
 popd
 
 # install check_password module
@@ -369,6 +366,14 @@ install -m 0755 %SOURCE52 %{buildroot}%{_libexecdir}/openldap/check-config.sh
 install -m 0755 %SOURCE53 %{buildroot}%{_libexecdir}/openldap/upgrade-db.sh
 install -m 0755 %SOURCE54 %{buildroot}%{_libexecdir}/openldap/create-certdb.sh
 install -m 0755 %SOURCE55 %{buildroot}%{_libexecdir}/openldap/generate-server-cert.sh
+
+# install mdb_* tools
+mv %{buildroot}/usr/local/bin/mdb_{copy,dump,load,stat} %{buildroot}%{_libexecdir}/openldap/
+mkdir -p %{buildroot}%{_libexecdir}/openldap/man/man1
+mv %{buildroot}/usr/local/share/man/man1/mdb_{copy,dump,load,stat}.1 %{buildroot}%{_libexecdir}/openldap/man/man1/
+# we don't want the library itself nor header file
+rm -f %{buildroot}/usr/local/include/lmdb.h
+rm -f %{buildroot}/usr/local/lib/liblmdb.{a,so}
 
 # remove build root from config files and manual pages
 perl -pi -e "s|%{buildroot}||g" %{buildroot}%{_sysconfdir}/openldap/*.conf
@@ -649,6 +654,8 @@ exit 0
 %{_libexecdir}/openldap/check-config.sh
 %{_libexecdir}/openldap/upgrade-db.sh
 %{_libexecdir}/openldap/generate-server-cert.sh
+%{_libexecdir}/openldap/mdb_*
+%{_libexecdir}/openldap/man/man1/mdb_*
 %{_sbindir}/sl*
 %{_mandir}/man8/*
 %{_mandir}/man5/slapd*.5*
@@ -673,6 +680,21 @@ exit 0
 %{_mandir}/man3/*
 
 %changelog
+* Tue Jun  6 2017 Matus Honek <mhonek@redhat.com> - 2.4.44-5
+- fix CVE-2017-9287 openldap: Double free vulnerability in servers/slapd/back-mdb/search.c (#1458210)
+
+* Fri Mar 24 2017 Matus Honek <mhonek@redhat.com> - 2.4.44-4
+- NSS: Include some CHACHA20POLY1305 ciphers (#1432907)
+
+* Wed Mar 15 2017 Matus Honek <mhonek@redhat.com> - 2.4.44-3
+- NSS: re-register NSS_Shutdown callback (#1405354)
+
+* Wed Mar 15 2017 Matus Honek <mhonek@redhat.com> - 2.4.44-2
+- Include MDB tools in openldap-servers (#1428740)
+
+* Wed Jan  4 2017 Matus Honek <mhonek@redhat.com> - 2.4.44-1
+- Rebase to openldap-2.4.44 (#1386365)
+
 * Wed Aug 17 2016 Matus Honek <mhonek@redhat.com> - 2.4.40-13
 - fix: Bad log levels in check_password module
 - fix: We can't search expected entries from LDAP server
