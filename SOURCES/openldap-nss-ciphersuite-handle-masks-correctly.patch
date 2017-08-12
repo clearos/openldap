@@ -16,7 +16,7 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
  #define SSL_aDSA        0x00000004L
  #define SSL_DSA         SSL_aDSA
  #define SSL_eNULL       0x00000008L
-@@ -225,19 +224,26 @@ typedef struct {
+@@ -225,19 +224,27 @@ typedef struct {
  #define SSL_RC2         0x00000080L
  #define SSL_AES128      0x00000100L
  #define SSL_AES256      0x00000200L
@@ -36,6 +36,7 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
 +#define SSL_kEECDH  0x00200000L
 +#define SSL_AESGCM  0x00400000L
 +#define SSL_AEAD    0x00800000L
++#define SSL_CHACHA20POLY1305 0x02000000L
 +
 +/* cipher attributes non-unique - do not use for definitions */
 +#define SSL_RSA         0x00000001L
@@ -118,7 +119,7 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
  				} else if (!strcmp(cipher, "3DES")) {
  					mask |= SSL_3DES;
  				} else if (!strcmp(cipher, "DES")) {
-@@ -685,28 +705,43 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
+@@ -685,28 +705,45 @@ nss_parse_ciphers(const char *cipherstr, int cipher_list[ciphernum])
  					mask |= SSL_RC2;
  				} else if (!strcmp(cipher, "MD5")) {
  					mask |= SSL_MD5;
@@ -166,6 +167,8 @@ diff --git a/libraries/libldap/tls_m.c b/libraries/libldap/tls_m.c
 +				} else if ((!strcmp(cipher, "ECDSA")) || (!strcmp(cipher, "aECDSA"))) {
  					mask |= SSL_aECDSA;
 +					negative_mask |= SSL_kECDH;
++				} else if (!strcmp(cipher, "CHACHA20POLY1305")) {
++					mask |= SSL_CHACHA20POLY1305;
  				} else if (!strcmp(cipher, "SSLv2")) {
  					protocol |= SSL2;
  				} else if (!strcmp(cipher, "SSLv3")) {
